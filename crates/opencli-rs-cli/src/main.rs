@@ -139,6 +139,29 @@ async fn main() {
         )
         .init();
 
+    // Check for --daemon flag (used by BrowserBridge to spawn daemon as subprocess)
+    let args: Vec<String> = std::env::args().collect();
+    if args.iter().any(|a| a == "--daemon") {
+        let port: u16 = std::env::var("OPENCLI_DAEMON_PORT")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(19825);
+        tracing::info!(port = port, "Starting daemon server");
+        match opencli_rs_browser::Daemon::start(port).await {
+            Ok(daemon) => {
+                // Wait for shutdown signal (ctrl+c)
+                tokio::signal::ctrl_c().await.ok();
+                tracing::info!("Shutting down daemon");
+                let _ = daemon.shutdown().await;
+            }
+            Err(e) => {
+                eprintln!("Failed to start daemon: {}", e);
+                std::process::exit(1);
+            }
+        }
+        return;
+    }
+
     // 2. Create registry and discover adapters
     let mut registry = Registry::new();
 
