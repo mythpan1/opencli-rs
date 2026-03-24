@@ -106,11 +106,13 @@ impl BrowserBridge {
         Ok(())
     }
 
-    /// Kill whatever process is listening on our port.
+    /// Kill whatever process is LISTENING on our port.
+    /// Uses -sTCP:LISTEN to avoid killing ourselves (we're a client connection).
     async fn kill_port_occupant(&self) {
-        // Use lsof to find the PID occupying the port, then kill it
+        let my_pid = std::process::id();
+
         let output = tokio::process::Command::new("lsof")
-            .args(["-ti", &format!("tcp:{}", self.port)])
+            .args(["-ti", &format!("tcp:{}", self.port), "-sTCP:LISTEN"])
             .output()
             .await;
 
@@ -118,6 +120,10 @@ impl BrowserBridge {
             let pids = String::from_utf8_lossy(&output.stdout);
             for pid_str in pids.trim().lines() {
                 if let Ok(pid) = pid_str.trim().parse::<u32>() {
+                    if pid == my_pid {
+                        debug!(pid = pid, "skipping self");
+                        continue;
+                    }
                     info!(pid = pid, port = self.port, "killing foreign daemon process");
                     let _ = tokio::process::Command::new("kill")
                         .arg(pid.to_string())
