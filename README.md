@@ -2,7 +2,7 @@
 
 AI 驱动的命令行工具 —— 将网站、桌面应用和本地工具统一转化为 CLI 接口。
 
-这是 [OpenCLI](https://github.com/anthropics/opencli)（TypeScript）的 Rust 完整重写版，功能对等，性能大幅提升。
+这是 [OpenCLI](https://github.com/jackwener/opencli)（TypeScript）的 Rust 完整重写版，功能对等，性能大幅提升。
 
 ## 特性
 
