@@ -1,7 +1,7 @@
 # opencli-rs
-<div align="center">
+
 **[English](README.md) | [中文](README.zh.md) | [日本語](README.ja.md)**
-</div>
+
 超高速・メモリ安全なコマンドラインツール —— **1コマンドであらゆるWebサイトの情報を即座に取得**。Twitter/X、Reddit、YouTube、HackerNews、Bilibili、知乎、小紅書、 など [55以上のサイト](#組み込みコマンド)をカバーし、Electron デスクトップアプリの制御やローカル CLI ツール（`gh`、`docker`、`kubectl`）の統合もサポート。ブラウザセッションの再利用と AI ネイティブディスカバリー機能により駆動されます。
 
 [OpenCLI](https://github.com/jackwener/opencli)（TypeScript）を **純 Rust で完全リライト**。機能は同等で、**最大12倍高速**、**メモリ使用量1/10**、**単一ファイル 4.7MB**、ランタイム依存ゼロ。

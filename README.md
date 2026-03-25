@@ -1,8 +1,5 @@
 # opencli-rs
-
-<div align="center">
 **[English](README.md) | [中文](README.zh.md) | [日本語](README.ja.md)**
-</div>
 
 Blazing fast, memory-safe command-line tool — **Fetch information from any website with a single command**. Covers Twitter/X, Reddit, YouTube, HackerNews, Bilibili, Zhihu, Xiaohongshu,  and [55+ sites](#built-in-commands), with support for controlling Electron desktop apps, integrating local CLI tools (`gh`, `docker`, `kubectl`), powered by browser session reuse and AI-native discovery capabilities.
 

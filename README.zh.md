@@ -1,7 +1,7 @@
 # opencli-rs
-<div align="center">
+
 **[English](README.md) | [中文](README.zh.md) | [日本語](README.ja.md)**
-</div>
+
 极速、安全的命令行工具 —— **一行命令快速获取任意网站信息**。覆盖 Bilibili、知乎、小红书、Twitter/X、Reddit、YouTube、HackerNews 等 [55+ 站点](#内置命令)，同时支持控制 Electron 桌面应用、集成本地 CLI 工具（`gh`、`docker`、`kubectl`），通过浏览器会话复用和 AI 原生发现能力驱动。
 
 
