@@ -1,6 +1,6 @@
 #!/bin/sh
 # opencli-rs installer — detects OS/Arch and downloads the right binary
-# Usage: curl -fsSL https://raw.githubusercontent.com/xxx/opencli-rs/main/scripts/install.sh | sh
+# Usage: curl -fsSL https://raw.githubusercontent.com/nashsu/opencli-rs/main/scripts/install.sh | sh
 
 set -e
 

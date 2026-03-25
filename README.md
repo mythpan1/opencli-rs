@@ -4,6 +4,27 @@ AI 驱动的命令行工具 —— 将网站、桌面应用和本地工具统一
 
 这是 [OpenCLI](https://github.com/jackwener/opencli)（TypeScript）的 Rust 完整重写版，功能对等，性能大幅提升。
 
+## 性能对比 (opencli-rs vs opencli)
+
+| 指标 | opencli-rs (Rust) | opencli (Node.js) | 提升 |
+|------|:-----------------:|:-----------------:|:----:|
+| **内存占用 (Public 命令)** | 15 MB | 99 MB | **6.6x** |
+| **内存占用 (Browser 命令)** | 9 MB | 95 MB | **10.6x** |
+| **二进制大小** | 4.7 MB | ~50 MB (node_modules) | **10x** |
+| **运行时依赖** | 无 | Node.js 20+ | **零依赖** |
+| **测试通过率** | 103/122 (84%) | 104/122 (85%) | 接近对等 |
+
+**实测命令耗时对比：**
+
+| 命令 | opencli-rs | opencli | 加速比 |
+|------|:----------:|:-------:|:------:|
+| `bilibili hot` | **1.66s** | 20.1s | **12x** |
+| `zhihu hot` | **1.77s** | 20.5s | **11.6x** |
+| `xueqiu search 茅台` | **1.82s** | 9.2s | **5x** |
+| `xiaohongshu search` | **5.1s** | 14s | **2.7x** |
+
+> 基于 122 个命令的自动化测试（55 个站点），macOS Apple Silicon 环境。
+
 ## 特性
 
 - **55 个站点、333 个命令** —— 覆盖 Bilibili、Twitter、Reddit、知乎、小红书、YouTube、Hacker News 等
@@ -16,21 +37,47 @@ AI 驱动的命令行工具 —— 将网站、桌面应用和本地工具统一
 
 ## 安装
 
-### 从源码编译
+### macOS / Linux（一键安装）
 
 ```bash
-git clone https://github.com/your-org/opencli-rs.git
+curl -fsSL https://raw.githubusercontent.com/nashsu/opencli-rs/main/scripts/install.sh | sh
+```
+
+自动检测系统和架构，下载对应二进制，安装到 `/usr/local/bin/`。
+
+### Windows (PowerShell)
+
+```powershell
+# 下载
+Invoke-WebRequest -Uri "https://github.com/nashsu/opencli-rs/releases/latest/download/opencli-rs-x86_64-pc-windows-msvc.zip" -OutFile opencli-rs.zip
+
+# 解压并安装
+Expand-Archive opencli-rs.zip -DestinationPath .
+Move-Item opencli-rs.exe "$env:LOCALAPPDATA\Microsoft\WindowsApps\"
+```
+
+### 从源码编译（所有平台）
+
+```bash
+git clone https://github.com/nashsu/opencli-rs.git
 cd opencli-rs
 cargo build --release
 
-# 二进制位于 target/release/opencli-rs
+# macOS / Linux
 cp target/release/opencli-rs /usr/local/bin/
+
+# Windows
+copy target\release\opencli-rs.exe %LOCALAPPDATA%\Microsoft\WindowsApps\
 ```
+
+### 更新
+
+重新运行安装命令即可覆盖更新。
 
 ### 环境要求
 
-- Rust 1.75+（编译）
-- Chrome/Chromium + OpenCLI 扩展（浏览器命令需要）
+- Chrome/Chromium + [OpenCLI 扩展](https://github.com/jackwener/opencli)（浏览器命令需要）
+- 纯 Public API 命令（hackernews、devto、lobsters 等）无需 Chrome
 
 ## 快速开始
 
