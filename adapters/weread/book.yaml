@@ -6,32 +6,62 @@ strategy: cookie
 browser: true
 
 args:
-  book-id:
+  bookid:
     positional: true
     required: true
     type: str
-    description: Book ID (numeric, from search or shelf results)
+    description: Book ID (hash ID from shelf or search results)
 
 pipeline:
-  - navigate: https://weread.qq.com
+  - navigate:
+      url: "https://weread.qq.com/web/reader/${{ args.bookid }}"
+      settleMs: 6000
 
   - evaluate: |
       (async () => {
-        const bookId = '${{ args.book-id }}';
-        const res = await fetch('https://i.weread.qq.com/book/info?bookId=' + encodeURIComponent(bookId), { credentials: 'include' });
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const data = await res.json();
-        if (data?.errcode === -2010) throw new Error('Not logged in to WeRead');
-        if (data?.errcode && data.errcode !== 0) throw new Error(data.errmsg || 'WeRead API error ' + data.errcode);
-        const rating = data.newRating ? (data.newRating / 10).toFixed(1) + '%' : '-';
+        // Extract book info from page DOM and meta tags
+        const title = document.querySelector('.readerTopBar_title_link, .readerTopBar_title, h1, [class*=bookTitle]')?.textContent?.trim()
+          || document.title?.replace(/-.*$/, '').trim() || '';
+        const author = document.querySelector('.readerTopBar_author, [class*=bookAuthor], [class*=author]')?.textContent?.trim() || '';
+
+        // Try to get more info from meta tags
+        const desc = document.querySelector('meta[name="description"]')?.content || '';
+        const ogTitle = document.querySelector('meta[property="og:title"]')?.content || '';
+        const ogDesc = document.querySelector('meta[property="og:description"]')?.content || '';
+
+        // Try to extract from JSON-LD or script data
+        let bookData = {};
+        document.querySelectorAll('script[type="application/ld+json"]').forEach(s => {
+          try {
+            const d = JSON.parse(s.textContent);
+            if (d.name || d.author) bookData = d;
+          } catch {}
+        });
+
+        // Also try to find data in Nuxt payload script
+        document.querySelectorAll('script').forEach(s => {
+          const text = s.textContent || '';
+          if (text.includes('__NUXT_DATA__') || text.includes('bookInfo')) {
+            try {
+              const match = text.match(/"author"\s*:\s*"([^"]+)"/);
+              if (match && !author) bookData.author = match[1];
+              const pubMatch = text.match(/"publisher"\s*:\s*"([^"]+)"/);
+              if (pubMatch) bookData.publisher = pubMatch[1];
+              const introMatch = text.match(/"intro"\s*:\s*"([^"]{1,200})"/);
+              if (introMatch) bookData.intro = introMatch[1];
+              const catMatch = text.match(/"category"\s*:\s*"([^"]+)"/);
+              if (catMatch) bookData.category = catMatch[1];
+            } catch {}
+          }
+        });
+
         return [{
-          title: data.title || '',
-          author: data.author || '',
-          publisher: data.publisher || '',
-          intro: data.intro || '',
-          category: data.category || '',
-          rating,
+          title: title || bookData.name || ogTitle || '',
+          author: author || bookData.author || '',
+          publisher: bookData.publisher || '',
+          category: bookData.category || '',
+          intro: (bookData.intro || ogDesc || desc || '').substring(0, 200),
         }];
       })()
 
-columns: [title, author, publisher, intro, category, rating]
+columns: [title, author, publisher, category, intro]

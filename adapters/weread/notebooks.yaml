@@ -6,22 +6,22 @@ strategy: cookie
 browser: true
 
 pipeline:
-  - navigate: https://weread.qq.com
+  - navigate:
+      url: https://weread.qq.com
+      settleMs: 3000
 
   - evaluate: |
       (async () => {
-        const res = await fetch('https://i.weread.qq.com/user/notebooks', { credentials: 'include' });
+        const res = await fetch('/web/shelf/sync?synckey=0&lectureSynckey=0', { credentials: 'include' });
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const data = await res.json();
-        if (data?.errcode === -2010) throw new Error('Not logged in to WeRead');
-        if (data?.errcode && data.errcode !== 0) throw new Error(data.errmsg || 'WeRead API error');
+        if (data?.errCode === -2010) throw new Error('Not logged in to WeRead');
         const books = data?.books || [];
         return books.map(item => ({
-          title: item.book?.title || '',
-          author: item.book?.author || '',
-          noteCount: (item.bookmarkCount || 0) + (item.reviewCount || 0),
+          title: item.title || '',
+          author: item.author || '',
           bookId: item.bookId || '',
         }));
       })()
 
-columns: [title, author, noteCount, bookId]
+columns: [title, author, bookId]

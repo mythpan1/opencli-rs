@@ -6,28 +6,31 @@ strategy: cookie
 browser: true
 
 args:
-  book-id:
+  bookid:
     positional: true
     required: true
     type: str
-    description: Book ID (from shelf or search results)
+    description: "Book hash ID from reader URL (open book in weread.qq.com, copy ID from address bar)"
   limit:
     type: int
     default: 20
     description: Max results
 
 pipeline:
-  - navigate: https://weread.qq.com
+  - navigate:
+      url: "https://weread.qq.com/web/reader/${{ args.bookid }}"
+      settleMs: 6000
 
   - evaluate: |
       (async () => {
-        const bookId = '${{ args.book-id }}';
         const limit = ${{ args.limit }} || 20;
-        const res = await fetch('https://i.weread.qq.com/book/bookmarklist?bookId=' + encodeURIComponent(bookId), { credentials: 'include' });
+        const bmUrl = performance.getEntriesByType('resource')
+          .map(e => e.name)
+          .find(u => u.includes('/web/book/bookmarklist'));
+        if (!bmUrl) throw new Error('Bookmarklist API not found - ensure the book hash ID is correct');
+        const res = await fetch(bmUrl, { credentials: 'include' });
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const data = await res.json();
-        if (data?.errcode === -2010) throw new Error('Not logged in to WeRead');
-        if (data?.errcode && data.errcode !== 0) throw new Error(data.errmsg || 'WeRead API error');
         const items = data?.updated || [];
         const formatDate = (ts) => {
           if (!ts || ts <= 0) return '-';
