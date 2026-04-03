@@ -1,6 +1,9 @@
 mod args;
 mod commands;
 mod execution;
+mod i18n;
+
+use i18n::t;
 
 use clap::{Arg, ArgAction, Command};
 use clap_complete::Shell;
@@ -116,10 +119,222 @@ fn build_cli(registry: &Registry, external_clis: &[ExternalCli]) -> Command {
                 .about("One-shot: explore + synthesize + select best adapter")
                 .arg(Arg::new("url").required(true).help("URL to generate adapter for"))
                 .arg(Arg::new("goal").long("goal").help("What you want (e.g. hot, search, trending)"))
-                .arg(Arg::new("site").long("site").help("Override site name")),
+                .arg(Arg::new("site").long("site").help("Override site name"))
+                .arg(Arg::new("ai").long("ai").action(ArgAction::SetTrue).help("Use AI (LLM) to analyze and generate adapter (requires ~/.opencli-rs/config.json)")),
+        )
+        .subcommand(
+            Command::new("search")
+                .about("Search for existing adapters on autocli.ai")
+                .arg(Arg::new("url").required(true).help("URL to search adapters for")),
+        )
+        .subcommand(
+            Command::new("auth")
+                .about("Authenticate with AutoCLI"),
         );
 
     app
+}
+
+fn save_adapter(site: &str, name: &str, yaml: &str) {
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .unwrap_or_else(|_| ".".to_string());
+    let dir = std::path::PathBuf::from(&home)
+        .join(".opencli-rs")
+        .join("adapters")
+        .join(&site);
+    let _ = std::fs::create_dir_all(&dir);
+    let path = dir.join(format!("{}.yaml", name));
+    match std::fs::write(&path, yaml) {
+        Ok(_) => {
+            eprintln!("{} {} {}", t("✅ 已生成配置:", "✅ Generated adapter:"), site, name);
+            eprintln!("   {}{}", t("保存到: ", "Saved to: "), path.display());
+            eprintln!();
+            eprintln!("   {}", t("运行命令:", "Run it now:"));
+            eprintln!("   opencli-rs {} {}", site, name);
+        }
+        Err(e) => {
+            eprintln!("{}{}", t("生成成功但保存失败: ", "Generated adapter but failed to save: "), e);
+            eprintln!();
+            println!("{}", yaml);
+        }
+    }
+}
+
+const TOKEN_URL: &str = "https://autocli.ai/get-token";
+
+/// Print token missing message and exit.
+fn require_token() -> String {
+    let config = opencli_rs_ai::load_config();
+    match config.autocli_token {
+        Some(t) if !t.is_empty() => t,
+        _ => {
+            eprintln!("{}", t(
+                "❌ 未认证，请先登录获取 Token",
+                "❌ Not authenticated. Please login to get your token"
+            ));
+            eprintln!("   {}", TOKEN_URL);
+            eprintln!();
+            eprintln!("   {}", t(
+                "获取 Token 后运行: opencli-rs auth",
+                "After getting your token, run: opencli-rs auth"
+            ));
+            std::process::exit(1);
+        }
+    }
+}
+
+/// Print token invalid/expired message and exit.
+fn token_expired_exit() -> ! {
+    eprintln!("{}", t(
+        "❌ Token 无效或已过期，请重新获取",
+        "❌ Token is invalid or expired. Please get a new one"
+    ));
+    eprintln!("   {}", TOKEN_URL);
+    eprintln!();
+    eprintln!("   {}", t(
+        "获取新 Token 后运行: opencli-rs auth",
+        "After getting a new token, run: opencli-rs auth"
+    ));
+    std::process::exit(1);
+}
+
+/// Adapter match from server search
+struct AdapterMatch {
+    match_type: String,
+    site_name: String,
+    cmd_name: String,
+    description: String,
+    author: String,
+    command_uuid: String,
+}
+
+/// Search server for existing adapter configs matching the URL pattern.
+/// Returns Err with message on auth/server failure, Ok with matches on success.
+async fn search_existing_adapters(url: &str, token: &str) -> Result<Vec<AdapterMatch>, String> {
+    let pattern = opencli_rs_ai::url_to_pattern(url);
+    let search_url = opencli_rs_ai::search_url(&pattern);
+
+    eprintln!("{}", t("🔍 搜索已有配置...", "🔍 Searching for existing adapters..."));
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+
+    let resp = client
+        .get(&search_url)
+        .header("Authorization", format!("Bearer {}", token))
+        .header("User-Agent", opencli_rs_ai::user_agent())
+        .send()
+        .await
+        .map_err(|_| t("❌ 服务器连接失败，请稍后再试", "❌ Server connection failed, please try again later").to_string())?;
+
+    if resp.status().as_u16() == 403 {
+        token_expired_exit();
+    }
+    if !resp.status().is_success() {
+        return Err(format!("{}{}", t("❌ 服务器返回错误: ", "❌ Server error: "), resp.status()));
+    }
+
+    let body: serde_json::Value = resp.json().await
+        .map_err(|e| format!("Failed to parse response: {}", e))?;
+
+    let matches = body.get("matches")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
+
+    let mut results = Vec::new();
+    for m in &matches {
+        let match_type = m.get("match_type").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let site_name = m.get("site").and_then(|s| s.get("name")).and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let cmd_name = m.get("command").and_then(|c| c.get("cmd_name")).and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let description = m.get("command").and_then(|c| c.get("description")).and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let author = m.get("command").and_then(|c| c.get("author")).and_then(|v| v.as_str())
+            .or_else(|| m.get("author").and_then(|v| v.as_str()))
+            .unwrap_or("").to_string();
+        let command_uuid = m.get("command").and_then(|c| c.get("uuid")).and_then(|v| v.as_str()).unwrap_or("").to_string();
+
+        if !command_uuid.is_empty() {
+            results.push(AdapterMatch { match_type, site_name, cmd_name, description, author, command_uuid });
+        }
+    }
+
+    Ok(results)
+}
+
+/// Fetch full adapter config by command UUID.
+async fn fetch_adapter_config(command_uuid: &str, token: &str) -> Result<String, String> {
+    let url = opencli_rs_ai::command_config_url(command_uuid);
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+
+    let resp = client
+        .get(&url)
+        .header("Authorization", format!("Bearer {}", token))
+        .header("User-Agent", opencli_rs_ai::user_agent())
+        .send()
+        .await
+        .map_err(|_| t("❌ 服务器连接失败，请稍后再试", "❌ Server connection failed, please try again later").to_string())?;
+
+    if resp.status().as_u16() == 403 {
+        token_expired_exit();
+    }
+    if !resp.status().is_success() {
+        return Err(format!("{}{}", t("❌ 获取配置失败: ", "❌ Failed to fetch config: "), resp.status()));
+    }
+
+    let body: serde_json::Value = resp.json().await
+        .map_err(|e| format!("Failed to parse response: {}", e))?;
+
+    body.get("config")
+        .and_then(|c| c.get("content"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+        .ok_or_else(|| t("❌ 配置内容为空", "❌ Config content is empty").to_string())
+}
+
+async fn upload_adapter(yaml: &str) {
+    let token = require_token();
+
+    let api_url = opencli_rs_ai::upload_url();
+
+    eprintln!("{}", t("☁️  正在上传配置...", "☁️  Uploading adapter..."));
+    let client = match reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+    {
+        Ok(c) => c,
+        Err(e) => { eprintln!("❌ Failed to create HTTP client: {}", e); return; }
+    };
+
+    let body = serde_json::json!({ "config": yaml });
+    match client
+        .post(&api_url)
+        .header("Authorization", format!("Bearer {}", token))
+        .header("Content-Type", "application/json")
+        .header("User-Agent", opencli_rs_ai::user_agent())
+        .json(&body)
+        .send()
+        .await
+    {
+        Ok(resp) => {
+            if resp.status().is_success() {
+                eprintln!("{}", t("✅ 配置上传成功", "✅ Adapter uploaded successfully"));
+            } else if resp.status().as_u16() == 403 {
+                token_expired_exit();
+            } else {
+                let status = resp.status();
+                let body = resp.text().await.unwrap_or_default();
+                eprintln!("{}{}: {}", t("❌ 上传失败 ", "❌ Upload failed "), status, &body[..body.len().min(200)]);
+            }
+        }
+        Err(e) => { eprintln!("{}{}", t("❌ 上传失败: ", "❌ Upload failed: "), e); }
+    }
 }
 
 fn print_error(err: &opencli_rs_core::CliError) {
@@ -226,6 +441,166 @@ async fn main() {
                 completion::run_completion(&mut app, shell);
                 return;
             }
+            "search" => {
+                let raw_url = site_matches.get_one::<String>("url").unwrap();
+                let url = if raw_url.starts_with("http://") || raw_url.starts_with("https://") {
+                    raw_url.clone()
+                } else {
+                    format!("https://{}", raw_url)
+                };
+                let token = require_token();
+
+                match search_existing_adapters(&url, &token).await {
+                    Ok(matches) if !matches.is_empty() => {
+                        let options: Vec<String> = matches.iter().map(|m| {
+                            let tag = match m.match_type.as_str() {
+                                "exact" => "[exact]  ",
+                                "partial" => "[partial]",
+                                "domain" => "[domain] ",
+                                _ => "[other]  ",
+                            };
+                            let desc = if m.description.is_empty() {
+                                String::new()
+                            } else {
+                                format!(" - {}", m.description)
+                            };
+                            let author = if m.author.is_empty() {
+                                String::new()
+                            } else {
+                                format!(" (by {})", m.author)
+                            };
+                            format!("{} {} {}{}{}", tag, m.site_name, m.cmd_name, author, desc)
+                        }).collect();
+
+                        let selection = inquire::Select::new(
+                            t("找到以下配置，请选择:", "Adapters found, please select:"),
+                            options,
+                        ).prompt();
+
+                        match selection {
+                            Ok(chosen) => {
+                                let idx = matches.iter().position(|m| {
+                                    chosen.contains(&m.cmd_name) && chosen.contains(&m.site_name)
+                                });
+                                if let Some(i) = idx {
+                                    let m = &matches[i];
+                                    eprintln!("{}", t("📥 正在下载配置...", "📥 Downloading config..."));
+                                    match fetch_adapter_config(&m.command_uuid, &token).await {
+                                        Ok(yaml) => {
+                                            let yaml_site = yaml.lines()
+                                                .find(|l| l.starts_with("site:"))
+                                                .and_then(|l| l.strip_prefix("site:"))
+                                                .map(|s| s.trim().trim_matches('"').to_string())
+                                                .unwrap_or_else(|| m.site_name.clone());
+                                            let yaml_name = yaml.lines()
+                                                .find(|l| l.starts_with("name:"))
+                                                .and_then(|l| l.strip_prefix("name:"))
+                                                .map(|s| s.trim().trim_matches('"').to_string())
+                                                .unwrap_or_else(|| m.cmd_name.clone());
+                                            save_adapter(&yaml_site, &yaml_name, &yaml);
+                                        }
+                                        Err(e) => eprintln!("{}", e),
+                                    }
+                                }
+                            }
+                            Err(_) => {
+                                eprintln!("{}", t("已取消", "Cancelled"));
+                            }
+                        }
+                    }
+                    Ok(_) => {
+                        eprintln!("{}", t("📭 未找到匹配的配置", "📭 No matching adapters found"));
+                    }
+                    Err(e) => {
+                        eprintln!("{}", e);
+                        std::process::exit(1);
+                    }
+                }
+                return;
+            }
+            "auth" => {
+                // Open browser to get token
+                let token_url = "https://autocli.ai/get-token";
+                eprintln!("{}", t(
+                    "🔑 请在浏览器中获取 Token:",
+                    "🔑 Get your token from the browser:"
+                ));
+                eprintln!("   {}", token_url);
+                eprintln!();
+
+                // Open default browser
+                let _ = if cfg!(target_os = "macos") {
+                    std::process::Command::new("open").arg(token_url).spawn()
+                } else if cfg!(target_os = "windows") {
+                    std::process::Command::new("cmd").args(["/C", "start", token_url]).spawn()
+                } else {
+                    std::process::Command::new("xdg-open").arg(token_url).spawn()
+                };
+
+                // Token input loop with verification
+                loop {
+                    let input = inquire::Text::new(t("请输入 Token:", "Enter your token:"))
+                        .prompt();
+
+                    let token = match input {
+                        Ok(t) => t.trim().to_string(),
+                        Err(_) => {
+                            eprintln!("{}", t("已取消", "Cancelled"));
+                            return;
+                        }
+                    };
+
+                    if token.is_empty() {
+                        eprintln!("{}", t("❌ Token 不能为空", "❌ Token cannot be empty"));
+                        continue;
+                    }
+
+                    // Verify token with server
+                    eprintln!("{}", t("🔍 验证 Token...", "🔍 Verifying token..."));
+                    let client = reqwest::Client::builder()
+                        .timeout(std::time::Duration::from_secs(10))
+                        .build()
+                        .unwrap();
+
+                    let verify_url = "https://autocli.ai/api/auth/tokens/verify";
+                    let resp = client
+                        .post(verify_url)
+                        .header("Content-Type", "application/json")
+                        .header("User-Agent", opencli_rs_ai::user_agent())
+                        .json(&serde_json::json!({ "token": &token }))
+                        .send()
+                        .await;
+
+                    match resp {
+                        Ok(r) => {
+                            let body: serde_json::Value = r.json().await.unwrap_or_default();
+                            if body.get("status").and_then(|v| v.as_str()) == Some("valid") {
+                                // Save token
+                                let mut config = opencli_rs_ai::load_config();
+                                config.autocli_token = Some(token);
+                                match opencli_rs_ai::save_config(&config) {
+                                    Ok(_) => {
+                                        eprintln!("{}{}", t("✅ Token 已保存到 ", "✅ Token saved to "), opencli_rs_ai::config::config_path().display());
+                                    }
+                                    Err(e) => {
+                                        eprintln!("{}{}", t("❌ Token 保存失败: ", "❌ Failed to save token: "), e);
+                                        std::process::exit(1);
+                                    }
+                                }
+                                break;
+                            } else {
+                                eprintln!("{}", t("❌ Token 无效，请重新输入", "❌ Invalid token, please try again"));
+                                continue;
+                            }
+                        }
+                        Err(_) => {
+                            eprintln!("{}", t("❌ 无法连接验证服务器，请检查网络后重试", "❌ Cannot connect to verification server, please check your network and try again"));
+                            continue;
+                        }
+                    }
+                }
+                return;
+            }
             "explore" => {
                 let url = site_matches.get_one::<String>("url").unwrap();
                 let site = site_matches.get_one::<String>("site").cloned();
@@ -293,7 +668,8 @@ async fn main() {
             "generate" => {
                 let url = site_matches.get_one::<String>("url").unwrap();
                 let goal = site_matches.get_one::<String>("goal").cloned();
-                let site = site_matches.get_one::<String>("site").cloned();
+                let _site = site_matches.get_one::<String>("site").cloned();
+                let use_ai = site_matches.get_flag("ai");
 
                 let mut bridge = opencli_rs_browser::BrowserBridge::new(
                     std::env::var("OPENCLI_DAEMON_PORT").ok()
@@ -301,37 +677,131 @@ async fn main() {
                 );
                 match bridge.connect().await {
                     Ok(page) => {
-                        let gen_result = opencli_rs_ai::generate(page.as_ref(), url, goal.as_deref().unwrap_or("")).await;
-                        let _ = page.close().await;
-                        match gen_result {
-                            Ok(candidate) => {
-                                // Save to ~/.opencli-rs/adapters/{site}/{name}.yaml
-                                let home = std::env::var("HOME")
-                                    .or_else(|_| std::env::var("USERPROFILE"))
-                                    .unwrap_or_else(|_| ".".to_string());
-                                let dir = std::path::PathBuf::from(&home)
-                                    .join(".opencli-rs")
-                                    .join("adapters")
-                                    .join(&candidate.site);
-                                let _ = std::fs::create_dir_all(&dir);
-                                let path = dir.join(format!("{}.yaml", candidate.name));
-                                match std::fs::write(&path, &candidate.yaml) {
-                                    Ok(_) => {
-                                        eprintln!("✅ Generated adapter: {} {}", candidate.site, candidate.name);
-                                        eprintln!("   Strategy: {:?}, Confidence: {:.0}%", candidate.strategy, candidate.confidence * 100.0);
-                                        eprintln!("   Saved to: {}", path.display());
-                                        eprintln!();
-                                        eprintln!("   Run it now:");
-                                        eprintln!("   opencli-rs {} {}", candidate.site, candidate.name);
-                                    }
-                                    Err(e) => {
-                                        eprintln!("Generated adapter but failed to save: {}", e);
-                                        eprintln!();
-                                        println!("{}", candidate.yaml);
+                        if use_ai {
+                            // Require token for --ai
+                            let token = require_token();
+
+                            // Step 1: Search server for existing adapters
+                            let mut need_ai_generate = false;
+                            match search_existing_adapters(url, &token).await {
+                                Ok(matches) if !matches.is_empty() => {
+                                    // Build TUI selection list
+                                    let mut options: Vec<String> = matches.iter().map(|m| {
+                                        let tag = match m.match_type.as_str() {
+                                            "exact" => "[exact]  ",
+                                            "partial" => "[partial]",
+                                            "domain" => "[domain] ",
+                                            _ => "[other]  ",
+                                        };
+                                        let desc = if m.description.is_empty() {
+                                            String::new()
+                                        } else {
+                                            format!(" - {}", m.description)
+                                        };
+                                        let author = if m.author.is_empty() {
+                                            String::new()
+                                        } else {
+                                            format!(" (by {})", m.author)
+                                        };
+                                        format!("{} {} {}{}{}", tag, m.site_name, m.cmd_name, author, desc)
+                                    }).collect();
+                                    let regenerate_label = t("🔄 重新生成 (使用 AI 分析)", "🔄 Regenerate (using AI)").to_string();
+                                    options.push(regenerate_label.clone());
+
+                                    let selection = inquire::Select::new(
+                                        t("找到以下已有配置，请选择:", "Existing adapters found, please select:"),
+                                        options,
+                                    ).prompt();
+
+                                    match selection {
+                                        Ok(chosen) => {
+                                            if chosen.starts_with("🔄") {
+                                                need_ai_generate = true;
+                                            } else {
+                                                // Find the matching config
+                                                let idx = matches.iter().position(|m| {
+                                                    chosen.contains(&m.cmd_name) && chosen.contains(&m.site_name)
+                                                });
+                                                if let Some(i) = idx {
+                                                    let m = &matches[i];
+                                                    // Extract site and name from YAML config content, not server's display name
+                                                    eprintln!("{}", t("📥 正在下载配置...", "📥 Downloading config..."));
+                                                    match fetch_adapter_config(&m.command_uuid, &token).await {
+                                                        Ok(yaml) => {
+                                                            let yaml_site = yaml.lines()
+                                                                .find(|l| l.starts_with("site:"))
+                                                                .and_then(|l| l.strip_prefix("site:"))
+                                                                .map(|s| s.trim().trim_matches('"').to_string())
+                                                                .unwrap_or_else(|| m.site_name.clone());
+                                                            let yaml_name = yaml.lines()
+                                                                .find(|l| l.starts_with("name:"))
+                                                                .and_then(|l| l.strip_prefix("name:"))
+                                                                .map(|s| s.trim().trim_matches('"').to_string())
+                                                                .unwrap_or_else(|| m.cmd_name.clone());
+                                                            save_adapter(&yaml_site, &yaml_name, &yaml);
+                                                            let _ = page.close().await;
+                                                            return;
+                                                        }
+                                                        Err(e) => {
+                                                            eprintln!("{}", e);
+                                                            let _ = page.close().await;
+                                                            std::process::exit(1);
+                                                        }
+                                                    }
+                                                } else {
+                                                    need_ai_generate = true;
+                                                }
+                                            }
+                                        }
+                                        Err(_) => {
+                                            eprintln!("{}", t("已取消", "Cancelled"));
+                                            let _ = page.close().await;
+                                            return;
+                                        }
                                     }
                                 }
+                                Ok(_) => {
+                                    // No matches found
+                                    eprintln!("{}", t("📭 未找到已有配置，开始 AI 生成...", "📭 No existing adapter found, starting AI generation..."));
+                                    need_ai_generate = true;
+                                }
+                                Err(e) => {
+                                    eprintln!("{}", e);
+                                    let _ = page.close().await;
+                                    std::process::exit(1);
+                                }
                             }
-                            Err(e) => { print_error(&e); std::process::exit(1); }
+
+                            if !need_ai_generate {
+                                let _ = page.close().await;
+                                return;
+                            }
+
+                            // Step 2: AI generation via server API
+                            let ai_result = opencli_rs_ai::generate_with_ai(
+                                page.as_ref(), url,
+                                goal.as_deref().unwrap_or("hot"),
+                                &token,
+                            ).await;
+                            let _ = page.close().await;
+
+                            match ai_result {
+                                Ok((site, name, yaml)) => {
+                                    save_adapter(&site, &name, &yaml);
+                                    upload_adapter(&yaml).await;
+                                }
+                                Err(e) => { print_error(&e); std::process::exit(1); }
+                            }
+                        } else {
+                            // Rule-based generation (existing flow)
+                            let gen_result = opencli_rs_ai::generate(page.as_ref(), url, goal.as_deref().unwrap_or("")).await;
+                            let _ = page.close().await;
+                            match gen_result {
+                                Ok(candidate) => {
+                                    save_adapter(&candidate.site, &candidate.name, &candidate.yaml);
+                                }
+                                Err(e) => { print_error(&e); std::process::exit(1); }
+                            }
                         }
                     }
                     Err(e) => { print_error(&e); std::process::exit(1); }

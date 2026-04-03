@@ -1,8 +1,17 @@
 # opencli-rs
 **[English](README.md) | [中文](README.zh.md) | [日本語](README.ja.md)**
 
-Blazing fast, memory-safe command-line tool — **Fetch information from any website with a single command**. Covers Twitter/X, Reddit, YouTube, HackerNews, Bilibili, Zhihu, Xiaohongshu,  and [55+ sites](#built-in-commands), with support for controlling Electron desktop apps, integrating local CLI tools (`gh`, `docker`, `kubectl`), powered by browser session reuse and AI-native discovery capabilities.
+<p align="center">
+  <img src="title_screen.png" alt="opencli-rs" width="800" />
+</p>
 
+<p align="center">
+  <a href="https://autocli.ai"><b>https://autocli.ai</b></a> — AI-powered adapter marketplace & cloud API
+</p>
+
+---
+
+Blazing fast, memory-safe command-line tool — **Fetch information from any website with a single command**. Covers Twitter/X, Reddit, YouTube, HackerNews, Bilibili, Zhihu, Xiaohongshu, and [55+ sites](#built-in-commands), with support for controlling Electron desktop apps, integrating local CLI tools (`gh`, `docker`, `kubectl`), powered by browser session reuse and AI-native discovery capabilities.
 
 A **complete rewrite in pure Rust** based on [OpenCLI](https://github.com/jackwener/opencli) (TypeScript). Feature-equivalent, **up to 12x faster**, **10x less memory**, **single 4.7MB binary**, zero runtime dependencies.
 
@@ -38,6 +47,7 @@ A **complete rewrite in pure Rust** based on [OpenCLI](https://github.com/jackwe
 - **Browser session reuse** — Reuse logged-in sessions via Chrome extension, no need to manage tokens
 - **Declarative YAML Pipeline** — Describe data scraping workflows in YAML, add new adapters with zero code
 - **AI-native discovery** — `explore` analyzes website APIs, `generate` auto-creates adapters with one command, `cascade` probes authentication strategies
+- **AI-powered generation** — `generate --ai` uses LLM to analyze any website and create working adapters automatically, with cloud sharing via [autocli.ai](https://autocli.ai)
 - **Download media & articles** — Download videos (via yt-dlp), articles as Markdown with images localized
 - **External CLI passthrough** — Integrate GitHub CLI, Docker, Kubernetes, and other tools
 - **Multi-format output** — table, JSON, YAML, CSV, Markdown
@@ -139,6 +149,61 @@ opencli-rs completion zsh >> ~/.zshrc
 opencli-rs completion fish > ~/.config/fish/completions/opencli-rs.fish
 ```
 
+## AI Commands
+
+> **Powered by [autocli.ai](https://autocli.ai)** — Get your API token, share adapters with the community, and let AI generate adapters for any website.
+
+### Step 1: Authenticate
+
+```bash
+opencli-rs auth
+```
+
+This will:
+1. Open your browser to [https://autocli.ai/get-token](https://autocli.ai/get-token)
+2. Prompt you to enter the token
+3. Verify the token with the server
+4. Save it to `~/.opencli-rs/config.json`
+
+### Step 2: Generate Adapter with AI
+
+```bash
+# AI analyzes the page and generates a working adapter
+opencli-rs generate https://www.moltbook.com/ --goal 'list' --ai
+
+# Search for products
+opencli-rs generate https://www.amazon.com/ --goal 'search' --ai
+```
+
+**How it works:**
+1. Searches [autocli.ai](https://autocli.ai) for existing adapters matching the URL
+2. If found, shows an interactive list for you to choose:
+   ```
+   ? Existing adapters found, please select:
+   > [exact]   example hot (by alice) - Get trending posts
+     [domain]  example search (by bob) - Search articles
+     🔄 Regenerate (using AI)
+   ```
+3. If no match or you choose "Regenerate", AI analyzes the page (DOM structure + API requests) and generates a new YAML adapter
+4. The generated adapter is saved locally and uploaded to [autocli.ai](https://autocli.ai) for the community
+
+### Step 3: Search Existing Adapters
+
+```bash
+# Search by URL
+opencli-rs search https://www.example.com
+
+# Domain name also works (auto-prepends https://)
+opencli-rs search example.com
+```
+
+Searches [autocli.ai](https://autocli.ai) for community-shared adapters matching the URL. Select one from the interactive list to download and save it locally — ready to use immediately.
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `AUTOCLI_API_BASE` | Override server URL | `https://www.autocli.ai` |
 
 ## Built-in Commands
 
@@ -208,14 +273,15 @@ Run `opencli-rs --help` to see all available commands.
 
 ## AI Discovery Capabilities
 
-One command to discover APIs, auto-generate adapters, and start using them immediately:
+Two approaches to auto-generate adapters:
 
 ```bash
-# One-shot: explore + synthesize + save adapter
+# 🤖 AI-powered (recommended): LLM analyzes page and generates adapter
+opencli-rs generate https://www.example.com --goal hot --ai
+# Searches autocli.ai for existing adapters first, then generates with AI if needed
+
+# 🔧 Rule-based: heuristic analysis without AI
 opencli-rs generate https://www.example.com --goal hot
-# ✅ Generated adapter: example hot
-#    Saved to: ~/.opencli-rs/adapters/example/hot.yaml
-#    Run it now: opencli-rs example hot
 
 # Explore website API surface (endpoints, framework, stores)
 opencli-rs explore https://www.example.com --site mysite
