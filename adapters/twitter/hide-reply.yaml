@@ -1,3 +1,5 @@
+# Adapter logic derived from OpenCLI (https://github.com/jackwener/opencli)
+# Original author: jackwener | License: Apache-2.0
 site: twitter
 name: hide-reply
 description: Hide a reply on your tweet (useful for hiding bot/spam replies)

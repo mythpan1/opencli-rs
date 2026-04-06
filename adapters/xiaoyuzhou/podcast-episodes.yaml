@@ -1,3 +1,5 @@
+# Adapter logic derived from OpenCLI (https://github.com/jackwener/opencli)
+# Original author: jackwener | License: Apache-2.0
 site: xiaoyuzhou
 name: podcast-episodes
 description: List recent episodes of a Xiaoyuzhou podcast (up to 15, SSR limit)

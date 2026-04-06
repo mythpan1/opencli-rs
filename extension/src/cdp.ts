@@ -1,3 +1,5 @@
+// Based on OpenCLI (https://github.com/jackwener/opencli) by jackwener
+// Licensed under Apache-2.0. Modified for AutoCLI.
 /**
  * CDP execution via chrome.debugger API.
  *

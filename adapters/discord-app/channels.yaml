@@ -1,3 +1,5 @@
+# Adapter logic derived from OpenCLI (https://github.com/jackwener/opencli)
+# Original author: jackwener | License: Apache-2.0
 site: discord-app
 name: channels
 description: List channels in the current Discord server

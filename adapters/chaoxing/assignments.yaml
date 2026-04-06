@@ -1,3 +1,5 @@
+# Adapter logic derived from OpenCLI (https://github.com/jackwener/opencli)
+# Original author: jackwener | License: Apache-2.0
 site: chaoxing
 name: assignments
 description: "学习通作业列表"

@@ -1,3 +1,5 @@
+# Adapter logic derived from OpenCLI (https://github.com/jackwener/opencli)
+# Original author: jackwener | License: Apache-2.0
 site: devto
 name: user
 description: Recent DEV.to articles from a specific user

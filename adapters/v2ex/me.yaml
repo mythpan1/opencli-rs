@@ -1,3 +1,5 @@
+# Adapter logic derived from OpenCLI (https://github.com/jackwener/opencli)
+# Original author: jackwener | License: Apache-2.0
 site: v2ex
 name: me
 description: V2EX 获取个人资料 (余额/未读提醒)

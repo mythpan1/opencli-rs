@@ -1,3 +1,5 @@
+# Adapter logic derived from OpenCLI (https://github.com/jackwener/opencli)
+# Original author: jackwener | License: Apache-2.0
 site: xiaohongshu
 name: download
 description: "下载小红书笔记中的图片和视频"

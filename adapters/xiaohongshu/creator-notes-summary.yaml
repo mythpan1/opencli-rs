@@ -1,3 +1,5 @@
+# Adapter logic derived from OpenCLI (https://github.com/jackwener/opencli)
+# Original author: jackwener | License: Apache-2.0
 site: xiaohongshu
 name: creator-notes-summary
 description: "小红书最近笔记批量摘要 (列表 + 单篇关键数据汇总)"

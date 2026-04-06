@@ -1,3 +1,5 @@
+# Adapter logic derived from OpenCLI (https://github.com/jackwener/opencli)
+# Original author: jackwener | License: Apache-2.0
 site: weixin
 name: download
 description: "下载微信公众号文章为 Markdown 格式"

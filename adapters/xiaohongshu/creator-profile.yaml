@@ -1,3 +1,5 @@
+# Adapter logic derived from OpenCLI (https://github.com/jackwener/opencli)
+# Original author: jackwener | License: Apache-2.0
 site: xiaohongshu
 name: creator-profile
 description: "小红书创作者账号信息 (粉丝/关注/获赞/成长等级)"

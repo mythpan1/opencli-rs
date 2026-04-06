@@ -1,3 +1,5 @@
+# Adapter logic derived from OpenCLI (https://github.com/jackwener/opencli)
+# Original author: jackwener | License: Apache-2.0
 site: boss
 name: exchange
 description: "BOSS直聘交换联系方式（请求手机/微信）"

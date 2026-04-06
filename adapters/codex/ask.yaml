@@ -1,3 +1,5 @@
+# Adapter logic derived from OpenCLI (https://github.com/jackwener/opencli)
+# Original author: jackwener | License: Apache-2.0
 site: codex
 name: ask
 description: Send a prompt and wait for the AI response (send + wait + read)

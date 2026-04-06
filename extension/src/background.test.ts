@@ -1,3 +1,5 @@
+// Based on OpenCLI (https://github.com/jackwener/opencli) by jackwener
+// Licensed under Apache-2.0. Modified for AutoCLI.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 type Listener<T extends (...args: any[]) => void> = { addListener: (fn: T) => void };

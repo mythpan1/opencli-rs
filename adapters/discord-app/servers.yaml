@@ -1,3 +1,5 @@
+# Adapter logic derived from OpenCLI (https://github.com/jackwener/opencli)
+# Original author: jackwener | License: Apache-2.0
 site: discord-app
 name: servers
 description: List all Discord servers (guilds) in the sidebar

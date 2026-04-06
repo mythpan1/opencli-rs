@@ -1,3 +1,5 @@
+// Based on OpenCLI (https://github.com/jackwener/opencli) by jackwener
+// Licensed under Apache-2.0. Modified for AutoCLI.
 /**
  * OpenCLI — Service Worker (background script).
  *

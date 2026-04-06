@@ -1,3 +1,5 @@
+# Adapter logic derived from OpenCLI (https://github.com/jackwener/opencli)
+# Original author: jackwener | License: Apache-2.0
 site: sinablog
 name: search
 description: 搜索新浪博客文章（通过新浪搜索）

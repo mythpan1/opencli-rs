@@ -1,3 +1,5 @@
+# Adapter logic derived from OpenCLI (https://github.com/jackwener/opencli)
+# Original author: jackwener | License: Apache-2.0
 site: jimeng
 name: generate
 description: 即梦AI 文生图 — 输入 prompt 生成图片
